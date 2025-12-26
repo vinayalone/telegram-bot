@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import asyncio
 import logging
@@ -12,8 +13,8 @@ from telegram.ext import (
     filters,
 )
 
-# 🔴 PUT YOUR BOT TOKEN HERE
-BOT_TOKEN = "8501256382:AAFljrs50mfkR-wge0zeyQjEtKNDKpUdABM"
+# 🔐 BOT TOKEN (FROM RENDER ENVIRONMENT)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # 🔐 ADMIN ID
 ADMIN_ID = 5422522348
@@ -56,7 +57,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Contact admin for details."
         )
     except NetworkError:
-        print("⚠️ Network issue while replying /start")
+        pass
 
 
 # ---------- JOIN REQUEST ----------
@@ -73,7 +74,7 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ),
         )
     except NetworkError:
-        print("⚠️ Network issue while sending join message")
+        pass
 
 
 # ---------- BROADCAST COMMAND ----------
@@ -103,7 +104,7 @@ async def handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await update.message.copy(chat_id=user_id)
             sent += 1
-            await asyncio.sleep(0.05)  # ✅ prevents disconnect
+            await asyncio.sleep(0.05)
         except TelegramError:
             continue
 
@@ -114,13 +115,16 @@ async def handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------- ERROR HANDLER ----------
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     if isinstance(context.error, NetworkError):
-        print("⚠️ Network error occurred. Telegram unreachable.")
+        print("⚠️ Network error (Telegram unreachable)")
     else:
-        print(f"❌ Unexpected error: {context.error}")
+        print(f"❌ Error: {context.error}")
 
 
 # ---------- MAIN ----------
 def main():
+    if not BOT_TOKEN:
+        raise RuntimeError("BOT_TOKEN not found. Add it in Render Environment.")
+
     app = (
         ApplicationBuilder()
         .token(BOT_TOKEN)
@@ -133,11 +137,10 @@ def main():
     app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(ChatJoinRequestHandler(join_request))
     app.add_handler(MessageHandler(filters.ALL, handle_broadcast))
-
     app.add_error_handler(error_handler)
 
     print("Bot is running...")
-    app.run_polling(close_loop=False)
+    app.run_polling()
 
 
 if __name__ == "__main__":
