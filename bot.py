@@ -89,7 +89,7 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     kb = [
         [InlineKeyboardButton("📝 Set Channel Message", callback_data="set_msg")],
-        [InlineKeyboardButton("🔘 Add Button", callback_data="add_btn")],
+        [InlineKeyboardButton("🔘 Added Button", callback_data="add_btn")],
         [InlineKeyboardButton("📢 Broadcast", callback_data="broadcast")],
         [InlineKeyboardButton("📊 User Count", callback_data="count")],
     ]
@@ -223,3 +223,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
