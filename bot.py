@@ -42,7 +42,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     save_user(update.effective_user.id)
     await update.message.reply_text(
-        "Hello 👋\n This bot will approve accept join request of your channel automatically ✅ \n\nFor Ads Promotion - @EvilXStar"
+        "Hello 👋\nThis bot will approve accept join request of your channel automatically ✅ \n\nFor Ads Promotion - @EvilXStar"
     )
 
 
@@ -58,16 +58,17 @@ async def join_request(update, context):
     image_url = "https://cricchamp.in/best-cricket-prediction-app/"  # 🔴 PUT YOUR IMAGE URL HERE
 
     caption = (
-        "🔥 *IPL PREDICTIONS CHANNELS* 🔥\n\n"
-        "Join trusted IPL prediction channels below 👇"
+        "🔥 *BEST PREDICTIONS CHANNELS* 🔥👇\n\n"
     )
 
     keyboard = [
-        [InlineKeyboardButton("🏏 CRICKET PREDICTION 🏏", url="https://t.me/your_channel_1")],
-        [InlineKeyboardButton("❤️ AISHA QUEEN TIPS ❤️", url="https://t.me/your_channel_2")],
-        [InlineKeyboardButton("🚀 IPL LIVE LINE SCORE 🚀", url="https://t.me/your_channel_3")],
-        [InlineKeyboardButton("💥 IPL MATCH FIXER 💥", url="https://t.me/your_channel_4")],
-        [InlineKeyboardButton("❤️ IPL KA BAAP ❤️", url="https://t.me/your_channel_5")],
+        [InlineKeyboardButton("🏏 CRICKET PREDICTION 🏏", url="https://t.me/+OnYD5obSG1JiY2I0")],
+        [InlineKeyboardButton("❤️ AISHA QUEEN ❤️", url="https://t.me/+n2cVw6BE060zYWU1")],
+        [InlineKeyboardButton("💥 IPL MATCH FIXER 💥", url="https://t.me/+zED2WoyVd5pjMWM1")],
+        [InlineKeyboardButton("❤️ IPL KA BAAP ❤️", url="https://t.me/+11G8xkxyhK9jMTM9")],
+        [InlineKeyboardButton("🎉 TODAY WINNER 🎉", url="https://t.me/+60uABbfEdZY1NjI9")],
+        [InlineKeyboardButton("👑 DN SESSION KING 👑", url="https://t.me/+EEwGg6UIFFY0MGU1")],
+        [InlineKeyboardButton("👸 FEMALE TIPPER 👸", url="https://t.me/+QfOSCO6H6uo3ODk1")],
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -166,4 +167,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
