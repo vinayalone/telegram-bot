@@ -250,6 +250,24 @@ async def handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logging.error("Exception occurred:", exc_info=context.error)
 
+# ---------- ADMIN PANEL ----------
+async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.effective_user:
+        return
+
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    keyboard = [
+        [InlineKeyboardButton("📢 Broadcast", callback_data="broadcast")],
+        [InlineKeyboardButton("📊 Total Users", callback_data="count")],
+    ]
+
+    await update.message.reply_text(
+        "🛠 *Admin Panel*",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown",
+    )
 
 # ---------- MAIN ----------
 def main():
@@ -276,3 +294,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
