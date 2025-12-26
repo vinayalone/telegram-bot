@@ -7,7 +7,6 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
 )
-from telegram.error import TelegramError
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -42,19 +41,15 @@ cursor.execute(
 db.commit()
 
 
-def save_user(user_id: int):
-    cursor.execute(
-        "INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,)
-    )
+def save_user(uid: int):
+    cursor.execute("INSERT OR IGNORE INTO users VALUES (?)", (uid,))
     db.commit()
 
 
 # ---------- START ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_user(update.effective_user.id)
-    await update.message.reply_text(
-        "Hello 👋\n\nThis bot is used for promotion.\nContact admin for details."
-    )
+    await update.message.reply_text("Hellow 👋\nBot is active.")
 
 
 # ---------- JOIN REQUEST ----------
@@ -63,9 +58,7 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.chat_join_request.chat.id
     save_user(user.id)
 
-    cursor.execute(
-        "SELECT message FROM channels WHERE channel_id=?", (chat_id,)
-    )
+    cursor.execute("SELECT message FROM channels WHERE channel_id=?", (chat_id,))
     row = cursor.fetchone()
     if not row:
         return
@@ -82,14 +75,11 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             keyboard.append([InlineKeyboardButton(text, callback_data=callback)])
 
-    try:
-        await context.bot.send_message(
-            chat_id=user.id,
-            text=row[0],
-            reply_markup=InlineKeyboardMarkup(keyboard) if keyboard else None,
-        )
-    except TelegramError:
-        pass
+    await context.bot.send_message(
+        chat_id=user.id,
+        text=row[0],
+        reply_markup=InlineKeyboardMarkup(keyboard) if keyboard else None,
+    )
 
 
 # ---------- ADMIN PANEL ----------
@@ -98,8 +88,8 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     kb = [
-        [InlineKeyboardButton("➕ Set Channel Message", callback_data="set_msg")],
-        [InlineKeyboardButton("🔘 Set Buttons", callback_data="set_btn")],
+        [InlineKeyboardButton("📝 Set Channel Message", callback_data="set_msg")],
+        [InlineKeyboardButton("🔘 Add Button", callback_data="add_btn")],
         [InlineKeyboardButton("📢 Broadcast", callback_data="broadcast")],
         [InlineKeyboardButton("📊 User Count", callback_data="count")],
     ]
@@ -109,56 +99,125 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# ---------- CALLBACKS ----------
+# ---------- CALLBACK HANDLER ----------
 async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
     if q.data == "count":
         cursor.execute("SELECT COUNT(*) FROM users")
-        total = cursor.fetchone()[0]
-        await q.message.reply_text(f"👥 Total users: {total}")
+        await q.message.reply_text(
+            f"👥 Total users: {cursor.fetchone()[0]}"
+        )
 
-    elif q.data == "broadcast":
-        context.user_data["broadcast"] = True
-        await q.message.reply_text("Send message to broadcast.")
+    elif q.data == "set_msg":
+        context.user_data["step"] = "channel_id"
+        await q.message.reply_text("Send CHANNEL ID")
+
+    elif q.data == "add_btn":
+        context.user_data["btn_step"] = "channel"
+        await q.message.reply_text("Send CHANNEL ID for button")
+
+
+# ---------- ADMIN TEXT FLOW ----------
+async def admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    # SET CHANNEL MESSAGE
+    if context.user_data.get("step") == "channel_id":
+        context.user_data["channel_id"] = int(update.message.text)
+        context.user_data["step"] = "message"
+        await update.message.reply_text("Now send the message text")
+        return
+
+    if context.user_data.get("step") == "message":
+        cid = context.user_data["channel_id"]
+        cursor.execute(
+            "INSERT OR REPLACE INTO channels VALUES (?, ?)",
+            (cid, update.message.text),
+        )
+        db.commit()
+        context.user_data.clear()
+        await update.message.reply_text("✅ Channel message saved")
+        return
+
+    # ADD BUTTON
+    if context.user_data.get("btn_step") == "channel":
+        context.user_data["btn_channel"] = int(update.message.text)
+        context.user_data["btn_step"] = "text"
+        await update.message.reply_text("Send button TEXT")
+        return
+
+    if context.user_data.get("btn_step") == "text":
+        context.user_data["btn_text"] = update.message.text
+        context.user_data["btn_step"] = "url"
+        await update.message.reply_text(
+            "Send URL (or type CALLBACK)"
+        )
+        return
+
+    if context.user_data.get("btn_step") == "url":
+        cid = context.user_data["btn_channel"]
+        text = context.user_data["btn_text"]
+        val = update.message.text
+
+        if val.upper() == "CALLBACK":
+            cursor.execute(
+                "INSERT INTO buttons VALUES (?, ?, NULL, ?)",
+                (cid, text, "clicked"),
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO buttons VALUES (?, ?, ?, NULL)",
+                (cid, text, val),
+            )
+        db.commit()
+        context.user_data.clear()
+        await update.message.reply_text("✅ Button added")
+        return
 
 
 # ---------- BROADCAST ----------
-async def handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-    if not context.user_data.get("broadcast"):
+    context.user_data["broadcast"] = True
+    await update.message.reply_text("Send broadcast message")
+
+
+async def handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if (
+        update.effective_user.id != ADMIN_ID
+        or not context.user_data.get("broadcast")
+    ):
         return
 
     cursor.execute("SELECT user_id FROM users")
-    users = cursor.fetchall()
-
-    for (uid,) in users:
+    for (uid,) in cursor.fetchall():
         try:
             await update.message.copy(uid)
             await asyncio.sleep(0.05)
-        except TelegramError:
+        except:
             pass
 
     context.user_data["broadcast"] = False
-    await update.message.reply_text("✅ Broadcast completed.")
+    await update.message.reply_text("✅ Broadcast done")
 
 
 # ---------- MAIN ----------
 def main():
-    if not BOT_TOKEN:
-        raise RuntimeError("BOT_TOKEN missing")
-
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("admin", admin))
+    app.add_handler(CommandHandler("broadcast", broadcast))
     app.add_handler(ChatJoinRequestHandler(join_request))
     app.add_handler(CallbackQueryHandler(callbacks))
+    app.add_handler(MessageHandler(filters.TEXT, admin_text))
     app.add_handler(MessageHandler(filters.ALL, handle_broadcast))
 
-    print("Bot is running...")
+    print("Bot running...")
     app.run_polling()
 
 
