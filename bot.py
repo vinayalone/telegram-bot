@@ -3,9 +3,9 @@ import sqlite3
 import asyncio
 import logging
 from telegram import Update
-from telegram.error import NetworkError, TelegramError
+from telegram.error import TelegramError
 from telegram.ext import (
-    ApplicationBuilder,
+    Application,
     CommandHandler,
     ChatJoinRequestHandler,
     MessageHandler,
@@ -13,13 +13,9 @@ from telegram.ext import (
     filters,
 )
 
-# 🔐 BOT TOKEN (FROM RENDER ENVIRONMENT)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-# 🔐 ADMIN ID
 ADMIN_ID = 5422522348
 
-# ---------- LOGGING ----------
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -28,17 +24,12 @@ logging.basicConfig(
 # ---------- DATABASE ----------
 db = sqlite3.connect("users.db", check_same_thread=False)
 cursor = db.cursor()
-cursor.execute(
-    "CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)"
-)
+cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)")
 db.commit()
 
 
 def save_user(user_id: int):
-    cursor.execute(
-        "INSERT OR IGNORE INTO users (user_id) VALUES (?)",
-        (user_id,),
-    )
+    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
     db.commit()
 
 
@@ -46,53 +37,36 @@ def save_user(user_id: int):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
-
-    user_id = update.effective_user.id
-    save_user(user_id)
-
-    try:
-        await update.message.reply_text(
-            "Hello 👋\n\n"
-            "This bot is used for promotion.\n"
-            "Contact admin for details."
-        )
-    except NetworkError:
-        pass
+    save_user(update.effective_user.id)
+    await update.message.reply_text(
+        "Hello 👋\n\nThis bot is used for promotion.\nContact admin for details."
+    )
 
 
 # ---------- JOIN REQUEST ----------
 async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.chat_join_request.from_user
     save_user(user.id)
-
     try:
         await context.bot.send_message(
             chat_id=user.id,
-            text=(
-                "Thanks for requesting to join 🔥\n\n"
-                "For promotion or details, contact admin."
-            ),
+            text="Thanks for requesting to join 🔥\n\nFor promotion, contact admin.",
         )
-    except NetworkError:
+    except TelegramError:
         pass
 
 
-# ---------- BROADCAST COMMAND ----------
+# ---------- BROADCAST ----------
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-
     context.user_data["broadcast"] = True
-    await update.message.reply_text(
-        "📢 Send the message you want to broadcast to all users."
-    )
+    await update.message.reply_text("📢 Send the broadcast message.")
 
 
-# ---------- BROADCAST MESSAGE ----------
 async def handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
         return
-
     if not context.user_data.get("broadcast"):
         return
 
@@ -112,32 +86,17 @@ async def handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ Broadcast sent to {sent} users.")
 
 
-# ---------- ERROR HANDLER ----------
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    if isinstance(context.error, NetworkError):
-        print("⚠️ Network error (Telegram unreachable)")
-    else:
-        print(f"❌ Error: {context.error}")
-
-
 # ---------- MAIN ----------
 def main():
     if not BOT_TOKEN:
-        raise RuntimeError("BOT_TOKEN not found. Add it in Render Environment.")
+        raise RuntimeError("BOT_TOKEN missing in environment variables")
 
-    app = (
-        ApplicationBuilder()
-        .token(BOT_TOKEN)
-        .connect_timeout(30)
-        .read_timeout(30)
-        .build()
-    )
+    app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(ChatJoinRequestHandler(join_request))
     app.add_handler(MessageHandler(filters.ALL, handle_broadcast))
-    app.add_error_handler(error_handler)
 
     print("Bot is running...")
     app.run_polling()
