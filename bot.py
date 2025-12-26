@@ -23,7 +23,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 5422522348
 
 PROMO_PRICE = "₹499"
-PAYMENT_INFO = "UPI: graphicinsight@axl"
+PAYMENT_UPI = "graphicinsight@axl"
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -53,7 +53,6 @@ def save_user(user_id: int):
     db.commit()
 
 
-# ✅ USER CLEANUP
 def remove_user(user_id: int):
     cursor.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
     db.commit()
@@ -110,11 +109,16 @@ async def promote(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        f"📢 *PAID PROMOTION*\n\n"
-        f"💰 Price: {PROMO_PRICE}\n"
-        f"💳 Payment: {PAYMENT_INFO}\n\n"
-        f"✍️ Send your ad message now.\n"
-        f"Admin will approve it.",
+        "📢 *PAID PROMOTION DETAILS*\n\n"
+        f"💼 Service: Channel Promotion\n"
+        f"💰 Price: *{PROMO_PRICE}*\n\n"
+        "💳 *Payment Method (UPI)*\n"
+        f"• UPI ID: `{PAYMENT_UPI}`\n\n"
+        "📌 *Instructions*\n"
+        "1️⃣ Complete the payment\n"
+        "2️⃣ Send your *ad message* here\n"
+        "3️⃣ Admin will review & approve\n\n"
+        "⏱ Approval Time: 1–24 hours",
         parse_mode="Markdown",
     )
 
@@ -148,31 +152,12 @@ async def receive_promo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=ADMIN_ID,
-        text=f"🆕 *New Paid Promotion*\n\n{content}",
+        text=f"🆕 *New Paid Promotion Request*\n\n{content}",
         reply_markup=keyboard,
         parse_mode="Markdown",
     )
 
-    await update.message.reply_text("✅ Promotion sent for admin approval.")
-
-
-# ---------- ADMIN PANEL ----------
-async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.effective_user:
-        return
-
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    keyboard = [
-        [InlineKeyboardButton("📢 Broadcast", callback_data="broadcast")],
-        [InlineKeyboardButton("📊 Total Users", callback_data="count")],
-    ]
-
-    await update.message.reply_text(
-        "🛠 Admin Panel",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
+    await update.message.reply_text("✅ Promotion submitted. Await admin approval.")
 
 
 # ---------- CALLBACK HANDLER ----------
@@ -232,6 +217,10 @@ async def handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.effective_user:
         return
 
+    # 🚫 prevent conflict with paid promotion flow
+    if context.user_data.get("awaiting_promo"):
+        return
+
     if update.effective_user.id != ADMIN_ID:
         return
 
@@ -274,8 +263,11 @@ def main():
     app.add_handler(CommandHandler("promote", promote))
     app.add_handler(ChatJoinRequestHandler(join_request))
     app.add_handler(CallbackQueryHandler(callbacks))
+
+    # 🔒 correct handler separation (CRITICAL)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, receive_promo))
-    app.add_handler(MessageHandler(filters.ALL, handle_broadcast))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_broadcast))
+
     app.add_error_handler(error_handler)
 
     print("Bot is running...")
