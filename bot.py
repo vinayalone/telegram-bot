@@ -42,25 +42,47 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     save_user(update.effective_user.id)
     await update.message.reply_text(
-        "Hello 👋\n\nThis bot is used for promotion.\nContact admin for details."
+        "Hello 👋\n This bot will approve accept join request of your channel automatically ✅ \n\nFor Ads Promotion - @EvilXStar"
     )
 
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
 # ---------- JOIN REQUEST ----------
-async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def join_request(update, context):
     user = update.chat_join_request.from_user
     save_user(user.id)
 
+    image_url = "https://cricchamp.in/best-cricket-prediction-app/"  # 🔴 PUT YOUR IMAGE URL HERE
+
+    caption = (
+        "🔥 *IPL PREDICTIONS CHANNELS* 🔥\n\n"
+        "Join trusted IPL prediction channels below 👇"
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("🏏 CRICKET PREDICTION 🏏", url="https://t.me/your_channel_1")],
+        [InlineKeyboardButton("❤️ AISHA QUEEN TIPS ❤️", url="https://t.me/your_channel_2")],
+        [InlineKeyboardButton("🚀 IPL LIVE LINE SCORE 🚀", url="https://t.me/your_channel_3")],
+        [InlineKeyboardButton("💥 IPL MATCH FIXER 💥", url="https://t.me/your_channel_4")],
+        [InlineKeyboardButton("❤️ IPL KA BAAP ❤️", url="https://t.me/your_channel_5")],
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
     try:
-        await context.bot.send_message(
+        await context.bot.send_photo(
             chat_id=user.id,
-            text=(
-                "Thanks for requesting to join 🔥\n\n"
-                "For promotion or details, contact admin."
-            ),
+            photo=image_url,
+            caption=caption,
+            reply_markup=reply_markup,
+            parse_mode="Markdown",
         )
-    except TelegramError:
+    except:
         pass
+
 
 
 # ---------- ADMIN PANEL ----------
@@ -144,3 +166,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
