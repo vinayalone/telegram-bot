@@ -2,7 +2,11 @@ import os
 import sqlite3
 import asyncio
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 from telegram.error import TelegramError
 from telegram.ext import (
     Application,
@@ -14,17 +18,19 @@ from telegram.ext import (
     filters,
 )
 
+# ---------- CONFIG ----------
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 5422522348
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
 
 # ---------- DATABASE ----------
 db = sqlite3.connect("users.db", check_same_thread=False)
 cursor = db.cursor()
-cursor.execute(
-    "CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)"
-)
+cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY)")
 db.commit()
 
 
@@ -38,28 +44,26 @@ def save_user(user_id: int):
 
 # ---------- /start ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
+    if not update.message or not update.effective_user:
         return
+
     save_user(update.effective_user.id)
+
     await update.message.reply_text(
-        "Hello 👋\nThis bot will approve accept join request of your channel automatically ✅ \n\nFor Ads Promotion - @EvilXStar"
+        "Hello 👋\n"
+        "This bot will approve & handle join requests automatically ✅\n\n"
+        "For Ads Promotion - @EvilXStar"
     )
 
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-
 # ---------- JOIN REQUEST ----------
-async def join_request(update, context):
+async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.chat_join_request.from_user
     save_user(user.id)
 
-    image_url = "https://cricchamp.in/best-cricket-prediction-app/"  # 🔴 PUT YOUR IMAGE URL HERE
+    image_url = "https://cricchamp.in/best-cricket-prediction-app/"
 
-    caption = (
-        "🔥 *BEST PREDICTIONS CHANNELS* 🔥👇\n\n"
-    )
+    caption = "🔥 *BEST PREDICTIONS CHANNELS* 🔥👇\n\n"
 
     keyboard = [
         [InlineKeyboardButton("🏏 CRICKET PREDICTION 🏏", url="https://t.me/+OnYD5obSG1JiY2I0")],
@@ -71,23 +75,23 @@ async def join_request(update, context):
         [InlineKeyboardButton("👸 FEMALE TIPPER 👸", url="https://t.me/+QfOSCO6H6uo3ODk1")],
     ]
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
     try:
         await context.bot.send_photo(
             chat_id=user.id,
             photo=image_url,
             caption=caption,
-            reply_markup=reply_markup,
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
-    except:
+    except TelegramError:
         pass
-
 
 
 # ---------- ADMIN PANEL ----------
 async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or not update.effective_user:
+        return
+
     if update.effective_user.id != ADMIN_ID:
         return
 
@@ -105,25 +109,30 @@ async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------- CALLBACK HANDLER ----------
 async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    if not query or not query.from_user:
+        return
+
     await query.answer()
 
     if query.data == "count":
         cursor.execute("SELECT COUNT(*) FROM users")
         total = cursor.fetchone()[0]
-        await query.message.reply_text(
-            f"👥 Total users: {total}"
-        )
+        await query.message.reply_text(f"👥 Total users: {total}")
 
     elif query.data == "broadcast":
         context.user_data["broadcast"] = True
         await query.message.reply_text(
-            "📢 Send the message you want to broadcast.\n\n"
+            "📢 Send the message you want to broadcast.\n"
             "It will be sent to all users."
         )
 
 
 # ---------- HANDLE BROADCAST ----------
 async def handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # ✅ FIX: ignore updates without user or message
+    if not update.message or not update.effective_user:
+        return
+
     if update.effective_user.id != ADMIN_ID:
         return
 
@@ -138,20 +147,23 @@ async def handle_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await update.message.copy(chat_id=user_id)
             sent += 1
-            await asyncio.sleep(0.05)  # rate limit safety
+            await asyncio.sleep(0.05)
         except TelegramError:
             continue
 
     context.user_data["broadcast"] = False
-    await update.message.reply_text(
-        f"✅ Broadcast sent to {sent} users."
-    )
+    await update.message.reply_text(f"✅ Broadcast sent to {sent} users.")
+
+
+# ---------- ERROR HANDLER ----------
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    logging.error("Exception occurred:", exc_info=context.error)
 
 
 # ---------- MAIN ----------
 def main():
     if not BOT_TOKEN:
-        raise RuntimeError("BOT_TOKEN missing")
+        raise RuntimeError("BOT_TOKEN missing in environment variables")
 
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -160,6 +172,7 @@ def main():
     app.add_handler(ChatJoinRequestHandler(join_request))
     app.add_handler(CallbackQueryHandler(callbacks))
     app.add_handler(MessageHandler(filters.ALL, handle_broadcast))
+    app.add_error_handler(error_handler)
 
     print("Bot is running...")
     app.run_polling()
@@ -167,5 +180,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
