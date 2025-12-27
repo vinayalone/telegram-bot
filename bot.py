@@ -281,36 +281,46 @@ async def receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # AD MESSAGE
-    if context.user_data.get("awaiting_ad") and update.message.text:
-        cursor.execute(
-            "INSERT INTO promotions (user_id, content, limit_users) VALUES (?, ?, ?)",
-            (
-                user_id,
-                update.message.text,
-                context.user_data["plan"],
-            ),
-        )
-        db.commit()
-        promo_id = cursor.lastrowid
-        context.user_data.clear()
+# ---------- AD MESSAGE ----------
+if context.user_data.get("awaiting_ad") and update.message.text:
+    ad_text = update.message.text
+    plan_users = context.user_data.get("plan")
 
-        keyboard = InlineKeyboardMarkup([
+    # save promotion
+    cursor.execute(
+        "INSERT INTO promotions (user_id, content, limit_users) VALUES (?, ?, ?)",
+        (user_id, ad_text, plan_users),
+    )
+    db.commit()
+    promo_id = cursor.lastrowid
+
+    # send to admin (screenshot + ad)
+    await context.bot.send_photo(
+        chat_id=ADMIN_ID,
+        photo=context.user_data.get("payment_photo"),
+        caption=(
+            "🆕 *New Promotion Request*\n\n"
+            f"👤 User ID: `{user_id}`\n"
+            f"👥 Users: {plan_users}\n\n"
+            f"📝 *Ad Message:*\n{ad_text}"
+        ),
+        reply_markup=InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("✅ Approve", callback_data=f"approve_{promo_id}"),
                 InlineKeyboardButton("❌ Reject", callback_data=f"reject_{promo_id}")
             ]
-        ])
+        ]),
+        parse_mode="Markdown",
+    )
 
-        await context.bot.send_message(
-            ADMIN_ID,
-            f"🆕 *New Promotion*\n\nUsers: {PROMO_PLANS[str(context.user_data.get('plan', 1000))][0]}\n\n{update.message.text}",
-            reply_markup=keyboard,
-            parse_mode="Markdown",
-        )
+    context.user_data.clear()
 
-        await update.message.reply_text("⏳ Your promotion is under review.")
-        return
+    await update.message.reply_text(
+        "⏳ Your promotion is under review.\n"
+        "You will be notified after admin approval."
+    )
+    return
+
 # ---------------- ADMIN PANEL ----------------
 async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -345,6 +355,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
