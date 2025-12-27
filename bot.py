@@ -116,6 +116,19 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
+    # ---- ADMIN PANEL CALLBACKS ----
+if query.data == "admin_count":
+    cursor.execute("SELECT COUNT(*) FROM users")
+    total = cursor.fetchone()[0]
+    await query.message.reply_text(f"👥 Total Users: {total}")
+    return
+
+if query.data == "admin_broadcast":
+    context.application.bot_data["broadcast"] = True
+    await query.message.reply_text("📢 Send the broadcast message now.")
+    return
+
+
     if query.data.startswith("plan_"):
         plan_key = query.data.split("_")[1]
         price, limit_users = PROMO_PLANS[plan_key]
@@ -167,6 +180,37 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---------------- RECEIVE USER DATA ----------------
 async def receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+async def receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    # ---------- ADMIN BROADCAST ----------
+    if (
+        update.effective_user.id == ADMIN_ID
+        and context.application.bot_data.get("broadcast")
+        and update.message
+    ):
+        cursor.execute("SELECT user_id FROM users")
+        users = cursor.fetchall()
+
+        sent = removed = 0
+        for (uid,) in users:
+            try:
+                await update.message.copy(chat_id=uid)
+                sent += 1
+                await asyncio.sleep(0.1)
+            except TelegramError:
+                remove_user(uid)
+                removed += 1
+
+        context.application.bot_data["broadcast"] = False
+        await update.message.reply_text(
+            f"✅ Broadcast Done\n📤 Sent: {sent}\n🚮 Removed: {removed}"
+        )
+        return
+
+    # ---------- PAYMENT SCREENSHOT ----------
+    if context.user_data.get("awaiting_payment") and update.message.photo:
+        ...
 
     # PAYMENT SCREENSHOT
     if context.user_data.get("awaiting_payment") and update.message.photo:
@@ -216,6 +260,21 @@ async def receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text("⏳ Your promotion is under review.")
         return
+# ---------------- ADMIN PANEL ----------------
+async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+
+    keyboard = [
+        [InlineKeyboardButton("📢 Broadcast", callback_data="admin_broadcast")],
+        [InlineKeyboardButton("📊 Total Users", callback_data="admin_count")],
+    ]
+
+    await update.message.reply_text(
+        "🛠 *Admin Panel*",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown",
+    )
 
 
 # ---------------- MAIN ----------------
@@ -223,6 +282,7 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("promote", promote))
     app.add_handler(ChatJoinRequestHandler(join_request))
     app.add_handler(CallbackQueryHandler(callbacks))
@@ -234,3 +294,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
