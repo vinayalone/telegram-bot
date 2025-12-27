@@ -132,24 +132,9 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    if query.from_user.id != ADMIN_ID:
-        await query.answer("❌ Unauthorized", show_alert=True)
-        return
+    user_id = query.from_user.id
 
-    # ----- ADMIN COUNT -----
-    if query.data == "admin_count":
-        cursor.execute("SELECT COUNT(*) FROM users")
-        total = cursor.fetchone()[0]
-        await query.message.reply_text(f"📊 Total Users: {total}")
-        return
-
-    # ----- ADMIN BROADCAST -----
-    if query.data == "admin_broadcast":
-        context.application.bot_data["broadcast"] = True
-        await query.message.reply_text("📢 Send the broadcast message now.")
-        return
-
-
+    # ---------------- USER PLAN SELECTION (EVERYONE) ----------------
     if query.data.startswith("plan_"):
         plan_key = query.data.split("_")[1]
         price, limit_users = PROMO_PLANS[plan_key]
@@ -159,20 +144,43 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await query.message.reply_text(
             f"✅ *Plan Selected*\n\n"
-            f"Users: {limit_users}\n"
-            f"Price: {price}\n\n"
+            f"👥 Users: {limit_users}\n"
+            f"💰 Price: {price}\n\n"
             "📸 Now send your *payment screenshot*.",
             parse_mode="Markdown",
         )
         return
 
-    if query.from_user.id != ADMIN_ID:
+    # 🚫 EVERYTHING BELOW THIS → ADMIN ONLY
+    if user_id != ADMIN_ID:
+        await query.answer("❌ Unauthorized", show_alert=True)
         return
 
+    # ---------------- ADMIN COUNT ----------------
+    if query.data == "admin_count":
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total = cursor.fetchone()[0]
+        await query.message.reply_text(f"📊 Total Users: {total}")
+        return
+
+    # ---------------- ADMIN BROADCAST ----------------
+    if query.data == "admin_broadcast":
+        context.application.bot_data["broadcast"] = True
+        await query.message.reply_text("📢 Send the broadcast message now.")
+        return
+
+    # ---------------- PROMO APPROVAL ----------------
     if query.data.startswith("approve_"):
         promo_id = int(query.data.split("_")[1])
-        cursor.execute("SELECT content, limit_users FROM promotions WHERE id=?", (promo_id,))
-        content, limit_users = cursor.fetchone()
+        cursor.execute(
+            "SELECT content, limit_users FROM promotions WHERE id=?",
+            (promo_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return
+
+        content, limit_users = row
 
         cursor.execute("SELECT user_id FROM users LIMIT ?", (limit_users,))
         users = cursor.fetchall()
@@ -190,13 +198,14 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.commit()
 
         await query.message.edit_text(f"✅ Approved & Sent to {sent} users")
+        return
 
     if query.data.startswith("reject_"):
         promo_id = int(query.data.split("_")[1])
         cursor.execute("DELETE FROM promotions WHERE id=?", (promo_id,))
         db.commit()
         await query.message.edit_text("❌ Promotion Rejected")
-
+        return
 
 # ---------------- RECEIVE USER DATA ----------------
 async def receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -317,6 +326,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
