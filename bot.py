@@ -214,7 +214,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursor.execute("DELETE FROM promotions WHERE id=?", (promo_id,))
         db.commit()
 
-        await query.message.edit_text(
+        await query.message.edit_caption(
             f"✅ Promotion Approved\n📤 Sent: {sent}\n🚮 Removed: {removed}"
         )
         return
@@ -223,7 +223,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         promo_id = int(data.split("_")[1])
         cursor.execute("DELETE FROM promotions WHERE id=?", (promo_id,))
         db.commit()
-        await query.message.edit_text("❌ Promotion Rejected")
+        await query.message.edit_caption("❌ Promotion Rejected")
         return
 
 # ---------------- RECEIVE USER DATA ----------------
@@ -347,4 +347,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
