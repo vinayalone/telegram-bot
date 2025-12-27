@@ -200,15 +200,17 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- RECEIVE USER DATA ----------------
 async def receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-async def receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    # ✅ SAFETY GUARD
+    if not update.effective_user or not update.message:
+        return
+
     user_id = update.effective_user.id
 
     # ---------- ADMIN BROADCAST ----------
     if (
-        update.effective_user.id == ADMIN_ID
+        user_id == ADMIN_ID
         and context.application.bot_data.get("broadcast")
-        and update.message
     ):
         cursor.execute("SELECT user_id FROM users")
         users = cursor.fetchall()
@@ -315,6 +317,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
