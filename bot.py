@@ -339,7 +339,7 @@ def main():
     app.add_handler(CommandHandler("promote", promote))
     app.add_handler(ChatJoinRequestHandler(join_request))
     app.add_handler(CallbackQueryHandler(callbacks))
-    app.add_handler(MessageHandler(filters.MESSAGE, receive))
+    app.add_handler(MessageHandler(filters.ALL, receive))
 
     print("🤖 Bot Running...")
     app.run_polling()
@@ -347,3 +347,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
