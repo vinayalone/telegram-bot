@@ -127,57 +127,73 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
-# ---------------- CALLBACKS ----------------
+# ---------------- CALLBACKS (FINAL FIX) ----------------
 async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
     user_id = query.from_user.id
+    data = query.data
 
-    # ---------------- USER PLAN SELECTION (EVERYONE) ----------------
-    if query.data.startswith("plan_"):
-        plan_key = query.data.split("_")[1]
+    # ====================================================
+    # 1️⃣ USER PROMOTION PLAN (EVERYONE)
+    # ====================================================
+    if data.startswith("plan_"):
+        plan_key = data.split("_")[1]
+
+        if plan_key not in PROMO_PLANS:
+            await query.message.reply_text("❌ Invalid plan")
+            return
+
         price, limit_users = PROMO_PLANS[plan_key]
 
-        context.user_data["plan"] = limit_users
+        context.user_data.clear()
+        context.user_data["plan_users"] = limit_users
         context.user_data["awaiting_payment"] = True
 
         await query.message.reply_text(
             f"✅ *Plan Selected*\n\n"
             f"👥 Users: {limit_users}\n"
             f"💰 Price: {price}\n\n"
-            "📸 Now send your *payment screenshot*.",
+            "📸 Please send your *payment screenshot* now.",
             parse_mode="Markdown",
         )
         return
 
-    # 🚫 EVERYTHING BELOW THIS → ADMIN ONLY
+    # ====================================================
+    # 🚫 BELOW THIS → ADMIN ONLY
+    # ====================================================
     if user_id != ADMIN_ID:
-        await query.answer("❌ Unauthorized", show_alert=True)
+        await query.answer("❌ Admin only", show_alert=True)
         return
 
-    # ---------------- ADMIN COUNT ----------------
-    if query.data == "admin_count":
+    # ====================================================
+    # 2️⃣ ADMIN PANEL
+    # ====================================================
+    if data == "admin_count":
         cursor.execute("SELECT COUNT(*) FROM users")
         total = cursor.fetchone()[0]
-        await query.message.reply_text(f"📊 Total Users: {total}")
+        await query.message.reply_text(f"👥 Total Users: {total}")
         return
 
-    # ---------------- ADMIN BROADCAST ----------------
-    if query.data == "admin_broadcast":
+    if data == "admin_broadcast":
         context.application.bot_data["broadcast"] = True
-        await query.message.reply_text("📢 Send the broadcast message now.")
+        await query.message.reply_text("📢 Send broadcast message now.")
         return
 
-    # ---------------- PROMO APPROVAL ----------------
-    if query.data.startswith("approve_"):
-        promo_id = int(query.data.split("_")[1])
+    # ====================================================
+    # 3️⃣ ADMIN PROMO APPROVAL
+    # ====================================================
+    if data.startswith("approve_"):
+        promo_id = int(data.split("_")[1])
+
         cursor.execute(
             "SELECT content, limit_users FROM promotions WHERE id=?",
             (promo_id,),
         )
         row = cursor.fetchone()
         if not row:
+            await query.message.reply_text("❌ Promotion not found")
             return
 
         content, limit_users = row
@@ -185,7 +201,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cursor.execute("SELECT user_id FROM users LIMIT ?", (limit_users,))
         users = cursor.fetchall()
 
-        sent = 0
+        sent = removed = 0
         for (uid,) in users:
             try:
                 await context.bot.send_message(uid, content)
@@ -193,15 +209,18 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await asyncio.sleep(0.1)
             except TelegramError:
                 remove_user(uid)
+                removed += 1
 
         cursor.execute("DELETE FROM promotions WHERE id=?", (promo_id,))
         db.commit()
 
-        await query.message.edit_text(f"✅ Approved & Sent to {sent} users")
+        await query.message.edit_text(
+            f"✅ Promotion Approved\n📤 Sent: {sent}\n🚮 Removed: {removed}"
+        )
         return
 
-    if query.data.startswith("reject_"):
-        promo_id = int(query.data.split("_")[1])
+    if data.startswith("reject_"):
+        promo_id = int(data.split("_")[1])
         cursor.execute("DELETE FROM promotions WHERE id=?", (promo_id,))
         db.commit()
         await query.message.edit_text("❌ Promotion Rejected")
@@ -326,6 +345,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
