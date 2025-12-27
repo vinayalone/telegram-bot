@@ -95,13 +95,13 @@ async def promote(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
     )
 
-
 # ---------------- JOIN REQUEST (ONLY DM PROMO) ----------------
 async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.chat_join_request.from_user
     save_user(user.id)
 
-  image_url = "https://cricchamp.in/best-cricket-prediction-app/"
+    image_url = "https://cricchamp.in/wp-content/uploads/2023/05/Screenshot-2023-05-18-at-7.54.33-AM.png"  # ✅ valid image URL
+
     caption = "🔥 *BEST PREDICTIONS CHANNELS* 🔥👇\n\n"
 
     keyboard = [
@@ -124,6 +124,7 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except TelegramError:
         pass
+
 
 
 # ---------------- CALLBACKS ----------------
@@ -314,5 +315,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
