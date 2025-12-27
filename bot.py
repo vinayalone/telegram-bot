@@ -22,15 +22,16 @@ from telegram.ext import (
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 5422522348
 
-PROMO_PRICE = "₹499"
+PROMO_PLANS = {
+    "1000": ("₹499", 1000),
+    "5000": ("₹1999", 5000),
+    "10000": ("₹3499", 10000),
+}
+
 PAYMENT_UPI = "graphicinsight@axl"
+PROMO_IMAGE = "https://i.imgur.com/5KXJ7Qp.jpg"
 
-PROMO_IMAGE = "https://i.imgur.com/5KXJ7Qp.jpg"  # ✅ direct image URL
-
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+logging.basicConfig(level=logging.INFO)
 
 # ---------------- DATABASE ----------------
 db = sqlite3.connect("users.db", check_same_thread=False)
@@ -41,104 +42,161 @@ cursor.execute("""
 CREATE TABLE IF NOT EXISTS promotions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
-    content TEXT
+    content TEXT,
+    photo_id TEXT,
+    limit_users INTEGER
 )
 """)
 db.commit()
 
 
-def save_user(user_id: int):
-    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+def save_user(user_id):
+    cursor.execute("INSERT OR IGNORE INTO users VALUES (?)", (user_id,))
     db.commit()
 
 
-def remove_user(user_id: int):
-    cursor.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+def remove_user(user_id):
+    cursor.execute("DELETE FROM users WHERE user_id=?", (user_id,))
     db.commit()
 
 
 # ---------------- /start ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
-        return
-
-    user_id = update.effective_user.id
-    save_user(user_id)
+    save_user(update.effective_user.id)
 
     await update.message.reply_text(
         "👋 Hello!\n\n"
         "This bot sends promotional messages automatically.\n\n"
-        "💰 Paid Promotion: /promote"
+        "We have 100k+ Users of data & of all Category\n\n"
+        "For Paid Promotion: /promote\n"
+        "Support: @EvilxStar"
     )
 
 
-# ---------------- JOIN REQUEST (NO APPROVAL) ----------------
+# ---------------- /promote ----------------
+async def promote(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("1000 Users – ₹499", callback_data="plan_1000")],
+        [InlineKeyboardButton("5000 Users – ₹1999", callback_data="plan_5000")],
+        [InlineKeyboardButton("10000 Users – ₹3499", callback_data="plan_10000")],
+    ]
+
+    await update.message.reply_text(
+        "📢 *PAID PROMOTION DETAILS*\n\n"
+        "💼 Service: Channel Promotion\n\n"
+        "💳 Payment Method (UPI)\n"
+        f"• `{PAYMENT_UPI}`\n\n"
+        "📌 Instructions\n"
+        "1️⃣ Choose a plan\n"
+        "2️⃣ Complete the payment\n"
+        "3️⃣ Send payment screenshot\n\n"
+        "⏱️ Approval Time: 1–24 hours",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown",
+    )
+
+
+# ---------------- JOIN REQUEST (ONLY DM PROMO) ----------------
 async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.chat_join_request.from_user
     save_user(user.id)
-
-    caption = (
-        "🔥 *BEST PREDICTION CHANNELS* 🔥\n\n"
-        "Join trusted & winning channels below 👇"
-    )
-
-    keyboard = [
-        [InlineKeyboardButton("🏏 CRICKET PREDICTION 🏏", url="https://t.me/+OnYD5obSG1JiY2I0")],
-        [InlineKeyboardButton("❤️ AISHA QUEEN ❤️", url="https://t.me/+n2cVw6BE060zYWU1")],
-        [InlineKeyboardButton("💥 IPL MATCH FIXER 💥", url="https://t.me/+zED2WoyVd5pjMWM1")],
-        [InlineKeyboardButton("🎉 TODAY WINNER 🎉", url="https://t.me/+60uABbfEdZY1NjI9")],
-    ]
 
     try:
         await context.bot.send_photo(
             chat_id=user.id,
             photo=PROMO_IMAGE,
-            caption=caption,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown",
+            caption="🔥 Best Promotion Channels Below 👇",
         )
     except TelegramError:
         pass
 
-    # ❌ DO NOT approve join request
-    # User stays unapproved intentionally
 
+# ---------------- CALLBACKS ----------------
+async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-# ---------------- PAID PROMOTION ----------------
-async def promote(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
-        return
+    if query.data.startswith("plan_"):
+        plan_key = query.data.split("_")[1]
+        price, limit_users = PROMO_PLANS[plan_key]
 
-    context.user_data.clear()
-    context.user_data["awaiting_promo"] = True
+        context.user_data["plan"] = limit_users
+        context.user_data["awaiting_payment"] = True
 
-    await update.message.reply_text(
-        "📢 *PAID PROMOTION DETAILS*\n\n"
-        f"💼 Service: Channel Promotion\n"
-        f"💰 Price: *{PROMO_PRICE}*\n\n"
-        "💳 *Payment (UPI)*\n"
-        f"`{PAYMENT_UPI}`\n\n"
-        "📌 After payment, send your ad message here.",
-        parse_mode="Markdown",
-    )
-
-
-# ---------------- RECEIVE PROMO MESSAGE ----------------
-async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
-        return
-
-    user_id = update.effective_user.id
-    text = update.message.text
-
-    # ----- PROMO FLOW -----
-    if context.user_data.get("awaiting_promo"):
-        cursor.execute(
-            "INSERT INTO promotions (user_id, content) VALUES (?, ?)",
-            (user_id, text),
+        await query.message.reply_text(
+            f"✅ *Plan Selected*\n\n"
+            f"Users: {limit_users}\n"
+            f"Price: {price}\n\n"
+            "📸 Now send your *payment screenshot*.",
+            parse_mode="Markdown",
         )
+        return
+
+    if query.from_user.id != ADMIN_ID:
+        return
+
+    if query.data.startswith("approve_"):
+        promo_id = int(query.data.split("_")[1])
+        cursor.execute("SELECT content, limit_users FROM promotions WHERE id=?", (promo_id,))
+        content, limit_users = cursor.fetchone()
+
+        cursor.execute("SELECT user_id FROM users LIMIT ?", (limit_users,))
+        users = cursor.fetchall()
+
+        sent = 0
+        for (uid,) in users:
+            try:
+                await context.bot.send_message(uid, content)
+                sent += 1
+                await asyncio.sleep(0.1)
+            except TelegramError:
+                remove_user(uid)
+
+        cursor.execute("DELETE FROM promotions WHERE id=?", (promo_id,))
         db.commit()
 
+        await query.message.edit_text(f"✅ Approved & Sent to {sent} users")
+
+    if query.data.startswith("reject_"):
+        promo_id = int(query.data.split("_")[1])
+        cursor.execute("DELETE FROM promotions WHERE id=?", (promo_id,))
+        db.commit()
+        await query.message.edit_text("❌ Promotion Rejected")
+
+
+# ---------------- RECEIVE USER DATA ----------------
+async def receive(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    # PAYMENT SCREENSHOT
+    if context.user_data.get("awaiting_payment") and update.message.photo:
+        context.user_data["payment_photo"] = update.message.photo[-1].file_id
+        context.user_data["awaiting_payment"] = False
+        context.user_data["awaiting_ad"] = True
+
+        await context.bot.send_photo(
+            ADMIN_ID,
+            photo=context.user_data["payment_photo"],
+            caption=f"💰 Payment Screenshot\nUser: {user_id}",
+        )
+
+        await update.message.reply_text(
+            "✅ Payment screenshot received.\n\n"
+            "📩 Now send your *ad message*."
+        )
+        return
+
+    # AD MESSAGE
+    if context.user_data.get("awaiting_ad") and update.message.text:
+        cursor.execute(
+            "INSERT INTO promotions (user_id, content, limit_users) VALUES (?, ?, ?)",
+            (
+                user_id,
+                update.message.text,
+                context.user_data["plan"],
+            ),
+        )
+        db.commit()
         promo_id = cursor.lastrowid
         context.user_data.clear()
 
@@ -150,132 +208,27 @@ async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
 
         await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f"🆕 *New Promotion Request*\n\n{text}",
+            ADMIN_ID,
+            f"🆕 *New Promotion*\n\nUsers: {PROMO_PLANS[str(context.user_data.get('plan', 1000))][0]}\n\n{update.message.text}",
             reply_markup=keyboard,
             parse_mode="Markdown",
         )
 
-        await update.message.reply_text("✅ Promotion sent for admin approval.")
+        await update.message.reply_text("⏳ Your promotion is under review.")
         return
-
-    # ----- BROADCAST FLOW -----
-    if (
-        user_id == ADMIN_ID
-        and context.application.bot_data.get("broadcast")
-    ):
-        cursor.execute("SELECT user_id FROM users")
-        users = cursor.fetchall()
-
-        sent = removed = 0
-        for (uid,) in users:
-            try:
-                await update.message.copy(chat_id=uid)
-                sent += 1
-                await asyncio.sleep(0.1)
-            except TelegramError:
-                remove_user(uid)
-                removed += 1
-
-        context.application.bot_data["broadcast"] = False
-        await update.message.reply_text(
-            f"✅ Broadcast completed\n📤 Sent: {sent}\n🚮 Removed: {removed}"
-        )
-
-
-# ---------------- CALLBACK HANDLER ----------------
-async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    if query.from_user.id != ADMIN_ID:
-        await query.answer("❌ Unauthorized", show_alert=True)
-        return
-
-    if query.data == "count":
-        cursor.execute("SELECT COUNT(*) FROM users")
-        total = cursor.fetchone()[0]
-        await query.message.reply_text(f"👥 Total users: {total}")
-
-    elif query.data == "broadcast":
-        context.application.bot_data["broadcast"] = True
-        await query.message.reply_text("📢 Send broadcast message now.")
-
-    elif query.data.startswith("approve_"):
-        promo_id = int(query.data.split("_")[1])
-        cursor.execute("SELECT content FROM promotions WHERE id = ?", (promo_id,))
-        row = cursor.fetchone()
-        if not row:
-            return
-
-        content = row[0]
-        cursor.execute("SELECT user_id FROM users")
-        users = cursor.fetchall()
-
-        sent = removed = 0
-        for (uid,) in users:
-            try:
-                await context.bot.send_message(chat_id=uid, text=content)
-                sent += 1
-                await asyncio.sleep(0.1)
-            except TelegramError:
-                remove_user(uid)
-                removed += 1
-
-        cursor.execute("DELETE FROM promotions WHERE id = ?", (promo_id,))
-        db.commit()
-
-        await query.message.edit_text(
-            f"✅ Promotion Approved\n📤 Sent: {sent}\n🚮 Removed: {removed}"
-        )
-
-    elif query.data.startswith("reject_"):
-        promo_id = int(query.data.split("_")[1])
-        cursor.execute("DELETE FROM promotions WHERE id = ?", (promo_id,))
-        db.commit()
-        await query.message.edit_text("❌ Promotion Rejected")
-
-
-# ---------------- ADMIN PANEL ----------------
-async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
-
-    keyboard = [
-        [InlineKeyboardButton("📢 Broadcast", callback_data="broadcast")],
-        [InlineKeyboardButton("📊 Total Users", callback_data="count")],
-    ]
-
-    await update.message.reply_text(
-        "🛠 *Admin Panel*",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown",
-    )
-
-
-# ---------------- ERROR HANDLER ----------------
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    logging.error("Error:", exc_info=context.error)
 
 
 # ---------------- MAIN ----------------
 def main():
-    if not BOT_TOKEN:
-        raise RuntimeError("BOT_TOKEN missing")
-
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CommandHandler("promote", promote))
-
     app.add_handler(ChatJoinRequestHandler(join_request))
     app.add_handler(CallbackQueryHandler(callbacks))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, receive_text))
+    app.add_handler(MessageHandler(filters.ALL, receive))
 
-    app.add_error_handler(error_handler)
-
-    print("🤖 Bot is running...")
+    print("🤖 Bot Running...")
     app.run_polling()
 
 
