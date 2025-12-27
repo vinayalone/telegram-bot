@@ -101,11 +101,26 @@ async def join_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.chat_join_request.from_user
     save_user(user.id)
 
+  image_url = "https://cricchamp.in/best-cricket-prediction-app/"
+    caption = "🔥 *BEST PREDICTIONS CHANNELS* 🔥👇\n\n"
+
+    keyboard = [
+        [InlineKeyboardButton("🏏 CRICKET PREDICTION 🏏", url="https://t.me/+OnYD5obSG1JiY2I0")],
+        [InlineKeyboardButton("❤️ AISHA QUEEN ❤️", url="https://t.me/+n2cVw6BE060zYWU1")],
+        [InlineKeyboardButton("💥 IPL MATCH FIXER 💥", url="https://t.me/+zED2WoyVd5pjMWM1")],
+        [InlineKeyboardButton("❤️ IPL KA BAAP ❤️", url="https://t.me/+11G8xkxyhK9jMTM9")],
+        [InlineKeyboardButton("🎉 TODAY WINNER 🎉", url="https://t.me/+60uABbfEdZY1NjI9")],
+        [InlineKeyboardButton("👑 DN SESSION KING 👑", url="https://t.me/+EEwGg6UIFFY0MGU1")],
+        [InlineKeyboardButton("👸 FEMALE TIPPER 👸", url="https://t.me/+QfOSCO6H6uo3ODk1")],
+    ]
+
     try:
         await context.bot.send_photo(
             chat_id=user.id,
-            photo=PROMO_IMAGE,
-            caption="🔥 Best Promotion Channels Below 👇",
+            photo=image_url,
+            caption=caption,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown",
         )
     except TelegramError:
         pass
@@ -116,17 +131,22 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # ---- ADMIN PANEL CALLBACKS ----
-if query.data == "admin_count":
-    cursor.execute("SELECT COUNT(*) FROM users")
-    total = cursor.fetchone()[0]
-    await query.message.reply_text(f"👥 Total Users: {total}")
-    return
+    if query.from_user.id != ADMIN_ID:
+        await query.answer("❌ Unauthorized", show_alert=True)
+        return
 
-if query.data == "admin_broadcast":
-    context.application.bot_data["broadcast"] = True
-    await query.message.reply_text("📢 Send the broadcast message now.")
-    return
+    # ----- ADMIN COUNT -----
+    if query.data == "admin_count":
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total = cursor.fetchone()[0]
+        await query.message.reply_text(f"📊 Total Users: {total}")
+        return
+
+    # ----- ADMIN BROADCAST -----
+    if query.data == "admin_broadcast":
+        context.application.bot_data["broadcast"] = True
+        await query.message.reply_text("📢 Send the broadcast message now.")
+        return
 
 
     if query.data.startswith("plan_"):
@@ -294,4 +314,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
