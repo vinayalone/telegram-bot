@@ -207,9 +207,17 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(uid, content)
                 sent += 1
                 await asyncio.sleep(0.1)
-            except TelegramError:
-                remove_user(uid)
-                removed += 1
+            except TelegramError as e:
+    error_text = str(e)
+
+    # ONLY remove if bot is blocked or chat not found
+    if "blocked" in error_text.lower() or "chat not found" in error_text.lower():
+        remove_user(uid)
+        removed += 1
+
+    # otherwise ignore (temporary error)
+    continue
+
 
         cursor.execute("DELETE FROM promotions WHERE id=?", (promo_id,))
         db.commit()
@@ -347,5 +355,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
